@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+
+# Secrets — never commit
+.env
+.env.local
+.env.*.local
+
+# App binaries under test
+apps/*
+!apps/.gitkeep
+
+# Run artefacts
+allure-results/
+allure-report/
+test-results/
+logs/
+*.log
+
+# Local feature-flag fixtures written at runtime
+test/fixtures/featureFlags/active.json
+
+# appium-mcp capabilities, regenerated from .env on every server launch
+test/fixtures/mcp/capabilities.json
+
+# Screenshots from an appium-mcp inspection session. Kept out of test-results/ so a test
+# run's artefact clean does not delete them.
+mcp-captures/
+
+# Appium / WDA
+.appium/
+*.ipa
+*.apk
+*.app/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Claude Code local settings
+.claude/settings.local.json

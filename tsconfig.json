@@ -1,0 +1,36 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023"],
+
+    // NodeNext keeps the `.js` extension in relative imports even though the files are
+    // `.ts` — so the migration changed no import statements.
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+
+    "types": ["node", "@wdio/globals/types", "@wdio/mocha-framework", "expect-webdriverio"],
+
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+
+    // tsx runs the sources directly; tsc is only ever a checker here.
+    "noEmit": true,
+    // tsx transpiles file-by-file, so reject anything that needs whole-program knowledge.
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true
+  },
+  "include": [
+    "config/**/*.ts",
+    "test/**/*.ts",
+    "scripts/**/*.ts",
+    "templates/**/*.ts",
+    "wdio.*.conf.ts"
+  ],
+  "exclude": ["node_modules", "apps", "allure-report", "allure-results", "test-results"]
+}

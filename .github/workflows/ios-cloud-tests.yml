@@ -1,0 +1,119 @@
+# Runs a spec on a real-device cloud (LambdaTest / TestMu AI) and publishes the Allure report.
+#
+# Template — adjust the secret names and the default spec for your project. It is
+# workflow_dispatch-only on purpose: a cloud real-device run costs device minutes and can
+# mutate shared account state, so it should be a decision rather than a push trigger.
+name: iOS Cloud Tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      spec:
+        description: 'Spec file to run (blank = the whole suite)'
+        required: false
+      resign_app:
+        description: "Re-sign the .ipa with the provider's certificate before install"
+        type: choice
+        required: false
+        default: 'false'
+        options: ['false', 'true']
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      # Written as a file because dotenv is what the wdio configs read, and one source
+      # avoids "works locally, unset in CI".
+      #
+      # Values are copied with printenv, never interpolated into the shell: a secret
+      # containing $, a backtick or a backslash would otherwise be mangled or executed.
+      - name: Write .env
+        run: |
+          : > .env
+          for name in APP_NAME IOS_BUNDLE_ID CLOUD_USERNAME CLOUD_ACCESS_KEY CLOUD_APP_ID \
+                      CLOUD_IOS_DEVICE_NAME CLOUD_IOS_PLATFORM_VERSION CLOUD_RESIGN_APP \
+                      CLOUD_BUILD_NAME IOS_SANDBOX_ACCOUNT IOS_SANDBOX_APPLE_PAY_PASSWORD; do
+            printf '%s=%s\n' "$name" "$(printenv "$name" || true)" >> .env
+          done
+        env:
+          APP_NAME: ${{ vars.APP_NAME }}
+          IOS_BUNDLE_ID: ${{ vars.IOS_BUNDLE_ID }}
+          CLOUD_USERNAME: ${{ secrets.CLOUD_USERNAME }}
+          CLOUD_ACCESS_KEY: ${{ secrets.CLOUD_ACCESS_KEY }}
+          CLOUD_APP_ID: ${{ secrets.CLOUD_APP_ID }}
+          CLOUD_IOS_DEVICE_NAME: ${{ vars.CLOUD_IOS_DEVICE_NAME }}
+          CLOUD_IOS_PLATFORM_VERSION: ${{ vars.CLOUD_IOS_PLATFORM_VERSION }}
+          CLOUD_RESIGN_APP: ${{ inputs.resign_app }}
+          CLOUD_BUILD_NAME: ci-${{ github.run_id }}
+          IOS_SANDBOX_ACCOUNT: ${{ secrets.IOS_SANDBOX_ACCOUNT }}
+          IOS_SANDBOX_APPLE_PAY_PASSWORD: ${{ secrets.IOS_SANDBOX_APPLE_PAY_PASSWORD }}
+
+      - name: Run tests
+        run: |
+          if [ -n "$SPEC" ]; then
+            npx wdio run ./wdio.ios.cloud.conf.ts --spec "$SPEC"
+          else
+            npx wdio run ./wdio.ios.cloud.conf.ts
+          fi
+        env:
+          # No NODE_OPTIONS needed: @wdio/cli detects a .ts config/spec itself and injects
+          # tsx's loader into its own and its workers' NODE_OPTIONS.
+          #
+          # The raw log is thousands of lines of protocol noise; the job summary below is
+          # what anyone actually reads.
+          WDIO_LOG_LEVEL: warn
+          SPEC: ${{ inputs.spec }}
+
+      - name: Generate Allure report
+        if: always()
+        run: npm run allure:generate
+
+      - name: Write job summary
+        if: always()
+        run: npm run summary --silent >> "$GITHUB_STEP_SUMMARY"
+        env:
+          PAGES_BASE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
+          PAGES_RUN_DIR: runs/${{ github.run_id }}
+
+      - name: Upload results artifact
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: ios-cloud-test-results
+          path: |
+            allure-results/
+            allure-report/
+            test-results/
+          retention-days: 7
+
+      - name: Deploy Allure report to GitHub Pages
+        if: always()
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./allure-report
+          destination_dir: runs/${{ github.run_id }}
+          keep_files: true

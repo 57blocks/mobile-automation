@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "appium-mcp": {
+      "type": "stdio",
+      "command": "./scripts/appium-mcp.sh",
+      "args": [],
+      "env": {}
+    }
+  }
+}
